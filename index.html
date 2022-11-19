@@ -2,89 +2,196 @@
 <meta charset="utf-8">
 
 <!-- Load d3.js -->
-<script src="https://d3js.org/d3.v6.js"></script>
+<script src="https://d3js.org/d3.v6.js" crossorigin="anonymous"></script>
+
 
 <!-- Create a div where the graph will take place -->
-<div id="my_dataviz"></div>
+
+<body>
+    <div id="data_vis"></div>
+
+</body>
 <script>
     // set the dimensions and margins of the graph
     const margin = {
-            top: 10,
-            right: 30,
-            bottom: 30,
+            top: 50,
+            right: 150,
+            bottom: 150,
             left: 60
         },
-        width = 460 - margin.left - margin.right,
-        height = 400 - margin.top - margin.bottom;
+        width = document.documentElement.clientWidth - margin.left - margin.right,
+        height = document.documentElement.clientHeight - margin.top - margin.bottom;
 
     // append the svg object to the body of the page
-    const svg = d3.select("#my_dataviz")
+    const svg = d3.select("#data_vis")
         .append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
         .append("g")
-        .attr("transform",
-            `translate(${margin.left}, ${margin.top})`);
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    //Read the data
-    d3.csv("https://raw.githubusercontent.com/holtzy/data_to_viz/master/Example_dataset/5_OneCatSevNumOrdered.csv").then(function(data) {
+    // const _URL = "https://raw.githubusercontent.com/slmaaa/COMP4462-Project-Vis/main/excess-mortality-p-scores-projected-baseline-by-age.csv";
 
-        // group the data: one array for each value of the X axis.
-        const sumstat = d3.group(data, d => d.year);
+    // fetch(_URL, {
+    //     mode: "cors",
+    //     headers: {
+    //         'Access-Control-Allow-Origin': '*'
+    //     }
+    // }).then((response) => d3.csvParse(response.text)).then((data) => {
+    //     console.log(data);
+    // });
+    isInsufficient = (row) => {
+        if (row["p_proj_0_14"].length === 0) return true;
+        if (row["p_proj_15_64"].length === 0) return true;
+        if (row["p_proj_65_74"].length === 0) return true;
+        if (row["p_proj_75_84"].length === 0) return true;
+        if (row["p_proj_85p"].length === 0) return true;
+        return false;
+    }
+    const age_groups = ["0 - 14", "15 - 64", "65 - 74", "75 - 84", "Over 85"]
+    const p_proj_age_groups = ["p_proj_0_14", "p_proj_15_64", "p_proj_65_74", "p_proj_75_84", "p_proj_85p"]
+    const processRow = (row) => {
+        row['date'] = d3.timeParse("%Y-%m-%d")(row['Day']);
+        p_proj_age_groups.forEach((age_group, i) => {
+            row[age_groups[i]] = +row[age_group];
+            delete row[age_group];
+        });
+        return row;
+    }
 
-        // Stack the data: each group will be represented on top of each other
-        const mygroups = ["Helen", "Amanda", "Ashley"] // list of group names
-        const mygroup = [1, 2, 3] // list of group names
-        const stackedData = d3.stack()
-            .keys(mygroup)
-            .value(function(d, key) {
-                return d[1][key].n
-            })
-            (sumstat)
+    d3.csv("excess-mortality-p-scores-projected-baseline-by-age.csv").then((data) => {
+        const excessMortalityPScoresProjectedBaselineByAgeFiltered = data.filter(row => !isInsufficient(row));
+        const availableCountries = new Set(excessMortalityPScoresProjectedBaselineByAgeFiltered.map(row => row.Entity));
+
+        const country = "Austria";
+
+        const _data = excessMortalityPScoresProjectedBaselineByAgeFiltered.filter(row => (row.Entity === country)).map(processRow);
+
+
+
 
         // Add X axis --> it is a date format
-        const x = d3.scaleLinear()
-            .domain(d3.extent(data, function(d) {
-                return d.year;
+        // var x = d3.scaleTime()
+        //     .domain(d3.extent(_data, d => d.date))
+        //     .range([0, width]);
+        // svg.append("g")
+        //     .attr("transform", `translate(0,${height})`)
+        //     .call(d3.axisBottom(x));
+
+        // var y = d3.scaleLinear()
+        //     .domain(d3.extent(_data, function(d) {
+        //         return +d.p_proj;
+        //     }))
+        //     .range([height, 0]);
+        // svg.append("g")
+        //     .call(d3.axisLeft(y));
+
+        // svg.append("path")
+        //     .datum(_data)
+        //     .attr("fill", "#cce5df")
+        //     .attr("stroke", "#69b3a2")
+        //     .attr("stroke-width", 1.5)
+        //     .attr("d", d3.area()
+        //         .x(function(d) {
+        //             return x(d.date)
+        //         })
+        //         .y0(y(0))
+        //         .y1(function(d) {
+        //             return y(d.p_proj)
+        //         })
+        //     )
+
+        const stackedData = d3.stack().keys(age_groups).value((obj, key) => +obj[key])(_data);
+        const yValues = _data.flatMap((row) =>
+            age_groups.map(age_group =>
+                +row[age_group] * 3)
+        );
+
+
+        // Add X axis
+        const x = d3.scaleTime()
+            .domain(d3.extent(_data, function(d) {
+                return d.date;
             }))
             .range([0, width]);
         svg.append("g")
-            .attr("transform", `translate(0, ${height})`)
-            .call(d3.axisBottom(x).ticks(5));
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x).ticks(8).tickSize(-height))
+            .select(".domain").remove()
+
+        svg.selectAll(".tick line").attr("stroke", "#b8b8b8")
+
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("x", width)
+            .attr("y", height + 20)
+            .text("Time");
+
 
         // Add Y axis
+
         const y = d3.scaleLinear()
-            .domain([0, d3.max(data, function(d) {
-                return +d.n;
-            }) * 1.2])
+            .domain(d3.extent(stackedData.flat(2)))
             .range([height, 0]);
         svg.append("g")
             .call(d3.axisLeft(y));
 
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("x", 0)
+            .attr("y", -20)
+            .text("Excess Mortality Percentage")
+            .attr("text-anchor", "start")
+
+
         // color palette
         const color = d3.scaleOrdinal()
-            .domain(mygroups)
-            .range(['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999'])
+            .domain(age_groups)
+            .range(d3.schemeDark2);
+        const Tooltip = svg
+            .append("text")
+            .attr("x", 0)
+            .attr("y", 0)
+            .style("opacity", 0)
+            .style("font-size", 17)
 
-        // Show the areas
-        svg
-            .selectAll("mylayers")
+        const mouseover = function(event, d) {
+            Tooltip.style("opacity", 1)
+            d3.selectAll(".myArea").style("opacity", .2)
+            d3.select(this)
+                .style("stroke", "black")
+                .style("opacity", 1)
+        }
+        const mousemove = function(event, d, i) {
+            grp = d.key
+            Tooltip.text(grp)
+        }
+        const mouseleave = function(event, d) {
+            Tooltip.style("opacity", 0)
+            d3.selectAll(".myArea").style("opacity", 1).style("stroke", "none")
+
+        }
+
+        const area = d3.area()
+            .x(function(d) {
+                return x(d.data.date);
+            })
+            .y0(function(d) {
+                return y(d[0]);
+            })
+            .y1(function(d) {
+                return y(d[1]);
+            })
+        svg.selectAll("mylayers")
             .data(stackedData)
             .join("path")
+            .attr("class", "myArea")
             .style("fill", function(d) {
-                name = mygroups[d.key - 1];
-                return color(name);
+                return color(d.key);
             })
-            .attr("d", d3.area()
-                .x(function(d, i) {
-                    return x(d.data[0]);
-                })
-                .y0(function(d) {
-                    return y(d[0]);
-                })
-                .y1(function(d) {
-                    return y(d[1]);
-                })
-            )
-    })
+            .attr("d", area)
+            .on("mouseover", mouseover)
+            .on("mousemove", mousemove)
+            .on("mouseleave", mouseleave)
+    });
 </script>
