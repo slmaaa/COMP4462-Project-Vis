@@ -9,7 +9,6 @@
 
 <body>
     <select id="selectButton"></select>
-
     <div id="data_vis"></div>
 
 </body>
@@ -21,8 +20,8 @@
             bottom: 150,
             left: 60
         },
-        width = document.documentElement.clientWidth / 3.5 - margin.left - margin.right,
-        height = document.documentElement.clientHeight / 2 - margin.top - margin.bottom;
+        width = document.documentElement.clientWidth - margin.left - margin.right,
+        height = document.documentElement.clientHeight - margin.top - margin.bottom;
 
     // append the svg object to the body of the page
     const svg = d3.select("#data_vis")
@@ -72,18 +71,17 @@
 
         const datum = d3.group(processedData, d => d.Entity);
 
-        let _data = datum.get(country);
-        let _long_data = _data.flatMap(row =>
+        const _data = datum.get(country);
+        const _long_data = _data.flatMap(row =>
             age_groups.map((age_group) => {
                 return {
                     date: row.date,
                     age_group: age_group,
-                    Entity: row.Entity,
                     p: row[age_group]
                 }
             })
         )
-        let _grouped_data = d3.group(_long_data, d => d.age_group);
+        const _grouped_data = d3.group(_long_data, d => d.age_group);
         console.log(_grouped_data);
 
         d3.select("#selectButton")
@@ -97,91 +95,122 @@
             .attr("value", function(d) {
                 return d;
             }) // corresponding value returned by the button
-        const svg = d3.select("#data_vis")
-            .selectAll("uniqueChart")
-            .data(_grouped_data)
-            .join("svg")
-            .attr("width", width + margin.left + margin.right)
-            .attr("height", height + margin.top + margin.bottom)
-            .append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`)
 
-        // Add X axis --> it is a date format
+
+        const stackedDatum = {}
+        for (const key of datum.keys()) {
+            stackedDatum[key] = (d3.stack().keys(age_groups)(datum.get(key)));
+        }
+
+        const stackedData = d3.stack().keys(age_groups).value((obj, key) => +obj[key])(_data);
+
+        // Add X axis
         const x = d3.scaleTime()
-            .domain(d3.extent(_long_data, d => d.date))
+            .domain(d3.extent(_data, function(d) {
+                return d.date;
+            }))
             .range([0, width]);
-        svg
-            .append("g")
-            .attr("class", "x axis")
-            .attr("transform", `translate(0, ${height} )`)
-            .call(d3.axisBottom(x).ticks(3));
+        const x_axis = svg.append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x).ticks(8).tickSize(-height))
+            .select(".domain").remove()
+
+        svg.selectAll(".tick line").attr("stroke", "#b8b8b8")
+
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("x", width)
+            .attr("y", height + 20)
+            .text("Time");
+
+
+        // Add Y axis
+
         const y = d3.scaleLinear()
-            .domain(d3.extent(_long_data, d => d.p))
+            .domain(d3.extent(stackedData.flat(2)))
             .range([height, 0]);
-        svg.append("g")
-            .attr("class", "y axis")
-            .call(d3.axisLeft(y).ticks(5));
+
+        d3.axisLeft(y);
+
+        const y_axis = svg.append("g")
+            .call(d3.axisLeft(y));
+
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("x", 0)
+            .attr("y", -20)
+            .text("Excess Mortality Percentage")
+            .attr("text-anchor", "start")
+
+
+        // color palette
         const color = d3.scaleOrdinal()
             .domain(age_groups)
             .range(d3.schemeDark2);
-
-        svg
-            .append("path")
-            .attr("class", "area")
-            .attr("fill", d => color(d[0]))
-            .attr("stroke", "none")
-            .attr("d", d => {
-                return d3.area()
-                    .x(d => x(d.date))
-                    .y0(y(0))
-                    .y1(d => y(+d.p))
-                    (d[1])
-            })
-        svg
+        const Tooltip = svg
             .append("text")
-            .attr("text-anchor", "start")
-            .attr("y", -5)
             .attr("x", 0)
-            .text(d => d[0])
-            .style("fill", d => color(d[0]))
+            .attr("y", 0)
+            .style("opacity", 0)
+            .style("font-size", 17)
 
+        const mouseover = function(event, d) {
+            Tooltip.style("opacity", 1)
+            d3.selectAll(".myArea").style("opacity", .2)
+            d3.select(this)
+                .style("stroke", "black")
+                .style("opacity", 1)
+        }
+        const mousemove = function(event, d, i) {
+            grp = d.key
+            Tooltip.text(grp)
+        }
+        const mouseleave = function(event, d) {
+            Tooltip.style("opacity", 0)
+            d3.selectAll(".myArea").style("opacity", 1).style("stroke", "none")
+
+        }
+
+        const area = d3.area()
+            .x(function(d) {
+                return x(d.data.date);
+            })
+            .y0(function(d) {
+                return y(d[0]);
+            })
+            .y1(function(d) {
+                return y(d[1]);
+            })
+        const areas = svg.selectAll("mylayers")
+            .data(stackedDatum[country])
+            .join("path")
+            .attr("class", "myArea")
+            .style("fill", function(d) {
+                return color(d.key);
+            })
+            .attr("d", area)
+            .on("mouseover", mouseover)
+            .on("mousemove", mousemove)
+            .on("mouseleave", mouseleave)
+
+
+        // A function that update the chart
         function update(selectedGroup) {
-            _data = datum.get(selectedGroup);
-            _long_data = _data.flatMap(row =>
-                age_groups.map((age_group) => {
-                    return {
-                        date: row.date,
-                        age_group: age_group,
-                        p: row[age_group],
-                        Entity: row.Entity
-                    }
-                })
-            )
-            _grouped_data = d3.group(_long_data, d => d.age_group);
-            const x = d3.scaleTime()
-                .domain(d3.extent(_long_data, d => d.date))
-                .range([0, width]);
-            svg
-                .select(".x.axis").call(d3.axisBottom(x).ticks(3));
 
-
-            const y = d3.scaleLinear()
-                .domain(d3.extent(_long_data, d => d.p))
-                .range([height, 0]);
-            svg
-                .select(".y.axis")
-                .call(d3.axisLeft(y).ticks(5));
-            svg.data(_grouped_data)
+            areas
+                .data(stackedDatum[selectedGroup])
+                .join("path")
                 .transition()
                 .duration(1000)
-                .select(".area")
-                .attr("d", d => {
-                    return d3.area()
-                        .x(d => x(d.date))
-                        .y0(y(0))
-                        .y1(d => y(+d.p))
-                        (d[1])
+                .attr("class", "myArea")
+                .style("fill", function(d) {
+                    return color(d.key);
                 })
+                .attr("d", area)
+
+
+            let _y = d3.scaleLinear().domain(d3.extent(stackedDatum[selectedGroup].flat(2))).range([height, 0]);
+            y_axis.call(d3.axisLeft(y));
 
 
         }
