@@ -16,24 +16,45 @@
         body {
             font-family: 'Open Sans', sans-serif;
             font-size: 12px;
-            font-weight: 300;
+            color: #333;
         }
         
-        .legend {
-            font-family: 'Raleway', sans-serif;
-            fill: #333333;
+        .select_button {
+            font-size: large;
+            margin: 20px;
         }
         
-        .tooltip {
-            fill: #333333;
+        .age_group {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 14px;
+        }
+        
+        .radar_text {
+            font-family: 'Open Sans', sans-serif;
+            font-size: 10px;
+            font-weight: 400;
+        }
+        
+        .select_button_label {
+            font-size: large;
+            margin: 20px;
         }
     </style>
 </head>
 
 <body>
-    <select id="selectButton"></select>
+    <div>
+        <span class="select_button_label">Country A</span>
+        <select id="selectButton"></select>
+        <div id="data_vis1"></div>
+    </div>
+    <br/>
+    <div>
+        <span class="select_button_label">Country B</span>
+        <select id="selectButton2"></select>
+        <div id="data_vis2"></div>
+    </div>
 
-    <div id="data_vis"></div>
 
     <script src="charts.js"></script>
 
